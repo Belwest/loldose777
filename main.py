@@ -9,81 +9,82 @@ GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN")
 CHANNEL_ID = "@loldose777"
 
-# Проверка наличия ключей в системе
-if not GOOGLE_API_KEY:
-    print("ОШИБКА: Секрет GOOGLE_API_KEY не найден!")
-if not TG_BOT_TOKEN:
-    print("ОШИБКА: Секрет TG_BOT_TOKEN не найден!")
-
-# Настройка
+# Настройка Google
 genai.configure(api_key=GOOGLE_API_KEY)
 bot = telebot.TeleBot(TG_BOT_TOKEN)
 
-def get_joke():
-    # Список моделей от самой новой к старым
-    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+def get_available_model():
+    """Автоматически находит доступную модель для твоего ключа"""
+    print("Проверка доступных моделей...")
+    try:
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                # Нам нужны модели flash или pro
+                if '1.5-flash' in m.name or '1.5-pro' in m.name or 'gemini-pro' in m.name:
+                    print(f"✅ Найдена рабочая модель: {m.name}")
+                    return m.name
+    except Exception as e:
+        print(f"❌ Не удалось получить список моделей: {e}")
+    return None
+
+def generate_joke():
+    model_name = get_available_model()
+    if not model_name:
+        return None
+    
+    model = genai.GenerativeModel(model_name)
     
     prompt = (
-        "Напиши ОЧЕНЬ СМЕШНОЙ анекдот в стиле короткого диалога. \n"
-        "ПРАВИЛА:\n"
-        "1. Реплики начинаются с '— '.\n"
-        "2. БЕЗ слов 'сказал/ответил'. Только прямая речь.\n"
-        "3. Женщина говорит в женском роде, мужчина — в мужском.\n"
+        "Напиши один очень смешной анекдот. \n"
+        "ПРАВИЛА ОФОРМЛЕНИЯ:\n"
+        "1. Формат диалога: каждая реплика начинается строго с символа '— '.\n"
+        "2. Категорически без слов автора ('сказал', 'ответила', 'спросил'). Только прямая речь.\n"
+        "3. Строго следи за родом (если персонаж женщина — 'пошла', 'забыла').\n"
         "4. Максимум 4 эмодзи на весь текст.\n"
         "5. БЕЗ МАТА.\n"
         "6. ТАБУ: политика, СВО, армия, религия.\n"
         "\n"
-        "ФОРМАТ HTML (ОБЯЗАТЕЛЬНО):\n"
-        "<b>Заголовок</b>\n"
-        "Тело анекдота\n"
-        "<tg-spoiler>Панчлайн</tg-spoiler>\n"
+        "ОБЯЗАТЕЛЬНЫЙ ФОРМАТ HTML:\n"
+        "<b>Тут жирный заголовок-байт</b>\n"
+        "Тут тело анекдота диалогом\n"
+        "<tg-spoiler>Тут скрытая развязка (панчлайн)</tg-spoiler>\n"
+        "\n"
         "#юмор #анекдот #жиза"
     )
 
-    for m_name in models_to_try:
-        try:
-            print(f"Запрос к модели: {m_name}...")
-            model = genai.GenerativeModel(m_name)
-            response = model.generate_content(prompt)
-            
-            if response and response.text:
-                print(f"✅ Модель {m_name} успешно сгенерировала текст.")
-                return response.text
-            else:
-                print(f"⚠️ Модель {m_name} вернула пустой ответ.")
-        except Exception as e:
-            print(f"❌ Ошибка модели {m_name}: {e}")
-            continue
+    try:
+        print(f"Запрашиваю генерацию у {model_name}...")
+        response = model.generate_content(prompt)
+        if response and response.text:
+            return response.text
+    except Exception as e:
+        print(f"❌ Ошибка генерации: {e}")
     return None
 
 if __name__ == "__main__":
-    print("--- СТАРТ РАБОТЫ СКРИПТА ---")
+    print("--- ЗАПУСК СКРИПТА ---")
     
     for i in range(2):
-        print(f"\nОбработка анекдота №{i+1}:")
-        joke = get_joke()
+        print(f"\nАнекдот №{i+1}:")
+        joke = generate_joke()
         
         if joke:
-            print(f"Текст для отправки:\n{joke[:100]}...") # Печатаем начало для проверки
             try:
-                print(f"Попытка отправки в канал {CHANNEL_ID}...")
                 bot.send_message(CHANNEL_ID, joke, parse_mode="HTML")
-                print("✅ СООБЩЕНИЕ УСПЕШНО ОТПРАВЛЕНО В ТЕЛЕГРАМ.")
+                print("✅ ОТПРАВЛЕНО В ТЕЛЕГРАМ")
             except Exception as e:
-                print(f"⚠️ Ошибка при отправке HTML: {e}")
-                # Если Телеграм ругается на HTML-теги, пробуем отправить голый текст
+                print(f"⚠️ Ошибка HTML разметки: {e}. Шлю текстом...")
+                clean_joke = re.sub('<[^<]+?>', '', joke)
                 try:
-                    print("Пробую отправить без HTML разметки...")
-                    clean_joke = re.sub('<[^<]+?>', '', joke)
                     bot.send_message(CHANNEL_ID, clean_joke)
-                    print("✅ ОТПРАВЛЕНО (без разметки).")
+                    print("✅ ОТПРАВЛЕНО (без разметки)")
                 except Exception as e2:
-                    print(f"‼️ КРИТИЧЕСКАЯ ОШИБКА: Не удалось отправить даже текст: {e2}")
+                    print(f"‼️ ОШИБКА ОТПРАВКИ: {e2}")
         else:
-            print("❌ Не удалось получить текст ни от одной модели.")
+            print("❌ Не удалось получить анекдот.")
         
         if i == 0:
-            print("Ожидание 10 секунд перед следующей генерацией...")
+            print("Пауза 10 секунд...")
             time.sleep(10)
 
-    print("\n--- РАБОТА ЗАВЕРШЕНА ---")
+    print("\n--- КОНЕЦ ---")
