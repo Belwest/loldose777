@@ -16,7 +16,7 @@ client = OpenAI(
 )
 
 # --- НОВАЯ, 100% РАБОЧАЯ МОДЕЛЬ ---
-MODEL = "mixtral-8x7b-32768"
+MODEL = "gemma-7b-it"
 
 def get_joke():
     sys_prompt = (
