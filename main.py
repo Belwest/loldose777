@@ -5,22 +5,18 @@ import requests
 from openai import OpenAI
 
 # --- КЛЮЧИ ИЗ СЕКРЕТОВ ---
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN")
 TG_CHANNEL_ID = os.environ.get("TG_CHANNEL_ID")
 
-# --- КЛИЕНТ ДЛЯ OPENROUTER ---
+# --- КЛИЕНТ ДЛЯ GROQ ---
 client = OpenAI(
-    api_key=OPENROUTER_API_KEY,
-    base_url="https://openrouter.ai/api/v1",
+    api_key=GROQ_API_KEY,
+    base_url="https://api.groq.com/openai/v1",
 )
 
-# --- СПИСОК СТАБИЛЬНЫХ БЕСПЛАТНЫХ МОДЕЛЕЙ ---
-MODELS = [
-    "google/gemma-7b-it:free",
-    "mistralai/mistral-7b-instruct:free",
-    "nousresearch/nous-hermes-2-mixtral-8x7b-dpo:free",
-]
+# --- РАБОЧАЯ МОДЕЛЬ НА GROQ ---
+MODEL = "gemma-7b-it"
 
 def get_joke():
     sys_prompt = (
@@ -44,22 +40,19 @@ def get_joke():
     )
     user_prompt = "Расскажи свежий, убойный анекдот."
 
-    for model in MODELS:
-        try:
-            print(f"Отправляю запрос в OpenRouter (модель: {model})...")
-            completion = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_prompt}],
-                extra_headers={"HTTP-Referer": "https://github.com/belwest/loldose777", "X-Title": "loldose777"},
-                temperature=1.1, 
-                timeout=40.0
-            )
-            print(f"Получил ответ от {model}.")
-            return completion.choices[0].message.content
-        except Exception as e:
-            print(f"⚠️ Ошибка модели {model}: {e}")
-            continue
-    return None
+    try:
+        print(f"Отправляю запрос в Groq (модель: {MODEL})...")
+        completion = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_prompt}],
+            temperature=1.1, 
+            timeout=30.0
+        )
+        print("Получил ответ от Groq.")
+        return completion.choices[0].message.content
+    except Exception as e:
+        print(f"⚠️ Ошибка при запросе к Groq: {e}")
+        return None
 
 def send_telegram(text):
     if not text: return
@@ -67,7 +60,7 @@ def send_telegram(text):
     payload = { "chat_id": TG_CHANNEL_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True }
     try:
         print("Отправляю сообщение в Телеграм...")
-        response = requests.post(url, json=payload, timeout=20)
+        response = requests.post(url, json=payload, timeout=15)
         print(f"Телеграм ответил со статусом: {response.status_code}")
         if response.status_code != 200:
             print(f"❌ Полный ответ от Телеграма: {response.text}")
@@ -83,7 +76,7 @@ if __name__ == "__main__":
             send_telegram(joke)
             jokes_generated += 1
         else:
-            print("❌ Ни одна модель не сгенерировала анекдот.")
+            print("❌ Модель не сгенерировала анекдот.")
         if i == 0:
             time.sleep(5)
     if jokes_generated == 0:
