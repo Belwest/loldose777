@@ -1,25 +1,30 @@
-name: Jokes Bot Final
+name: Post Joke Daily
+
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '0 */3 * * *'
+    # Запуск каждые 6 часов (время в формате CRON по UTC)
+    # Можно менять. Например '0 9 * * *' - каждый день в 9 утра UTC
+    - cron: '0 */6 * * *' 
+  workflow_dispatch: # Позволяет запустить вручную кнопку для теста
+
 jobs:
-  run_bot:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
         with:
           python-version: '3.9'
-      - run: pip install -r requirements.txt
-      - name: Запуск бота
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 5
-          max_attempts: 2
-          retry_wait_seconds: 600
-          command: python main.py
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run script
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
-          TG_CHANNEL_ID: ${{ secrets.TG_CHANNEL_ID }}
+        run: python main.py
