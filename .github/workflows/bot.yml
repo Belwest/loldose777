@@ -1,24 +1,21 @@
-name: Jokes Bot Final
+name: Post Joke Daily
+
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */3 * * *'
+    - cron: '0 */6 * * *'
+
 jobs:
   run_bot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
         with:
           python-version: '3.9'
       - run: pip install -r requirements.txt
-      - name: Запуск бота
-        uses: nick-invision/retry@v2
-        with:
-          timeout_minutes: 5
-          max_attempts: 2
-          retry_wait_seconds: 600
-          command: python main.py
+      - name: Run script
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+        run: python main.py
