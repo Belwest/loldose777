@@ -2,27 +2,37 @@ import os
 import telebot
 from openai import OpenAI
 
-# Настройки
+# 1. Настройки (ключи берутся из секретов GitHub, их добавим позже)
 TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-CHANNEL_ID = "@ВАШ_КАНАЛ"  # <--- ВАЖНО: ЗАМЕНИТЕ НА АДРЕС ВАШЕГО КАНАЛА (например @my_fun_channel)
 
+# !!! ВАЖНО: ВПИШИ СЮДА ЮЗЕРНЕЙМ ТВОЕГО КАНАЛА !!!
+CHANNEL_ID = "@loldose777" 
+# Например: CHANNEL_ID = "@anekdoty_test_123"
+
+# 2. Подключение к Groq
 client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=GROQ_API_KEY)
 bot = telebot.TeleBot(TG_BOT_TOKEN)
 
-def get_joke():
-    prompt = "Расскажи смешной, современный анекдот на русском языке. Без вступлений, сразу текст."
-    chat = client.chat.completions.create(
+# 3. Функция генерации
+def generate_joke():
+    prompt = (
+        "Придумай смешной, свежий анекдот на русском языке. "
+        "Темы: работа, жизнь, технологии, коты, ирония. "
+        "Никаких вступлений, сразу текст шутки."
+    )
+    
+    response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}]
     )
-    return chat.choices[0].message.content
+    return response.choices[0].message.content
 
+# 4. Запуск
 if __name__ == "__main__":
     try:
-        joke = get_joke()
-        bot.send_message(CHANNEL_ID, joke)
-        print("Успех!")
+        joke_text = generate_joke()
+        bot.send_message(CHANNEL_ID, joke_text)
+        print("Анекдот отправлен!")
     except Exception as e:
-        print(f"Ошибка: {e}")
-        exit(1) # Чтобы GitHub понял, что была ошибка
+        print(f"ОШИБКА: {e}")
