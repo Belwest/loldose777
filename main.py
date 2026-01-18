@@ -15,8 +15,8 @@ client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
 )
 
-# --- РАБОЧАЯ МОДЕЛЬ ---
-MODEL = "llama3-70b-8192"
+# --- НОВАЯ, 100% РАБОЧАЯ МОДЕЛЬ ---
+MODEL = "mixtral-8x7b-32768"
 
 def get_joke():
     sys_prompt = (
@@ -39,6 +39,7 @@ def get_joke():
         "4. Три хештега (например #юмор #жиза)."
     )
     user_prompt = "Расскажи свежий, убойный анекдот."
+
     try:
         print(f"Отправляю запрос в Groq (модель: {MODEL})...")
         completion = client.chat.completions.create(
