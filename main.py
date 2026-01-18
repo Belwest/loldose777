@@ -7,19 +7,17 @@ from openai import OpenAI
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN")
 
-# --- ID КАНАЛА (КАК В ТВОЕМ КОДЕ, ПРОПИСЫВАЕМ ПРЯМО ЗДЕСЬ) ---
-# ❗️ ВАЖНО: Вставь сюда свой ID канала с минусом
+# --- ТВОЙ ID КАНАЛА ИЗ СКРИНШОТА ---
 CHANNEL_ID = "@loldose777" 
 
-# --- ИНИЦИАЛИЗАЦИЯ (КАК В ТВОЕМ КОДЕ) ---
+# --- ИНИЦИАЛИЗАЦИЯ ---
 client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
 bot = telebot.TeleBot(TG_BOT_TOKEN)
 
-# --- РАБОЧАЯ МОДЕЛЬ (НАЙДЕНА ТОБОЙ) ---
-MODEL = "llama3-1.1-70b-versatile"
+# --- ПРАВИЛЬНАЯ МОДЕЛЬ (ИЗ ТВОЕГО СКРИНШОТА) ---
+MODEL = "llama-3.3-70b-versatile"
 
 def generate_joke():
-    # Наш "продвинутый" промпт с правилами и форматированием
     sys_prompt = (
         "Ты — топовый автор развлекательного Telegram-канала. \n"
         "Задача: Написать АНЕКДОТ, который хочется дочитать до конца. \n"
@@ -39,43 +37,35 @@ def generate_joke():
         "3. <tg-spoiler>Панчлайн (развязка)</tg-spoiler>\n"
         "4. Три хештега (например #юмор #жиза)."
     )
-    user_prompt = "Расскажи свежий, убойный анекдот."
+    user_prompt = "Придумай смешной, свежий анекдот на русском языке. Никаких вступлений, сразу текст шутки."
 
     try:
         print(f"Отправляю запрос в Groq (модель: {MODEL})...")
         response = client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_prompt}],
-            temperature=1.1,
-            timeout=40.0
+            temperature=1.1
         )
-        print("Получил ответ от Groq.")
         return response.choices[0].message.content
     except Exception as e:
-        print(f"⚠️ Ошибка при запросе к Groq: {e}")
+        print(f"⚠️ Ошибка API: {e}")
         return None
 
 if __name__ == "__main__":
-    jokes_generated = 0
+    jokes_sent = 0
     for i in range(2):
         print(f"--- Анекдот №{i+1} ---")
         joke_text = generate_joke()
         if joke_text:
             try:
-                print("Отправляю в Телеграм...")
-                # Используем твой метод отправки, но с HTML
                 bot.send_message(CHANNEL_ID, joke_text, parse_mode="HTML")
-                print("✅ Отправлено.")
-                jokes_generated += 1
+                print("✅ Отправлено!")
+                jokes_sent += 1
             except Exception as e:
-                print(f"❌ Ошибка отправки в Телеграм: {e}")
-        else:
-            print("❌ Модель не сгенерировала анекдот.")
+                print(f"❌ Ошибка Telegram: {e}")
         
         if i == 0:
-            time.sleep(5)
+            time.sleep(10)
     
-    # Если ничего не отправили, завершаем с ошибкой для GitHub Actions
-    if jokes_generated == 0:
-        print("КРИТИЧЕСКАЯ ОШИБКА: Ни одного анекдота не сгенерировано.")
+    if jokes_sent == 0:
         exit(1)
