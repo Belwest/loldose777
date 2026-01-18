@@ -1,21 +1,27 @@
 name: Post Joke Daily
+
 on:
   workflow_dispatch:
   schedule:
     - cron: '0 */6 * * *'
+
 jobs:
   run_bot:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+
       - name: Install dependencies
         run: pip install requests pyTelegramBotAPI
+
       - name: Run script
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHANNEL_ID: ${{ secrets.TG_CHANNEL_ID }}
         run: python main.py
