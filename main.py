@@ -2,7 +2,7 @@ import os
 import time
 import telebot
 import re
-from google import genai
+import google.generativeai as genai
 
 # --- КЛЮЧИ ИЗ СЕКРЕТОВ ---
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
@@ -11,8 +11,22 @@ TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN")
 # --- НАСТРОЙКИ ---
 CHANNEL_ID = "@loldose777" 
 
-# --- ИНИЦИАЛИЗАЦИЯ НОВОГО КЛИЕНТА GOOGLE ---
-client = genai.Client(api_key=GOOGLE_API_KEY)
+# --- НАСТРОЙКА GOOGLE ---
+genai.configure(api_key=GOOGLE_API_KEY)
+
+def get_working_model():
+    """Функция находит любую доступную модель Gemini, чтобы не было 404"""
+    try:
+        # Пробуем стандартную
+        return genai.GenerativeModel('gemini-1.5-flash')
+    except:
+        # Если не вышло, ищем любую, которая умеет генерировать текст
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                print(f"Использую альтернативную модель: {m.name}")
+                return genai.GenerativeModel(m.name)
+    return None
+
 bot = telebot.TeleBot(TG_BOT_TOKEN)
 
 def generate_joke():
@@ -20,35 +34,35 @@ def generate_joke():
         "Ты — топовый автор и редактор юмористического канала. \n"
         "Задача: Написать ОЧЕНЬ СМЕШНОЙ анекдот или шутку. \n"
         "\n"
-        "⚠️ ПРАВИЛА ОФОРМЛЕНИЯ И ЛОГИКИ (СТРОГО):\n"
-        "1. ФОРМАТ ДИАЛОГА: Каждая реплика ДОЛЖНА начинаться с длинного тире (— ).\n"
-        "2. БЕЗ АВТОРСКОГО ТЕКСТА: Запрещены фразы 'он сказал', 'она ответила'. Только прямая речь.\n"
-        "3. ГЕРОИ: Если нужно обозначить кто говорит, пиши коротко перед тире: 'Муж:', 'Врач:', 'Жена:'.\n"
-        "4. ГРАММАТИКА РОДА: Следи, чтобы женщина говорила о себе в женском роде, а мужчина — в мужском.\n"
-        "5. ЭМОДЗИ: Используй не более 4 эмодзи на весь текст.\n"
-        "6. СТИЛЬ: Живой, дерзкий, на грани фола, НО БЕЗ МАТА.\n"
+        "⚠️ ПРАВИЛА (СТРОГО):\n"
+        "1. ФОРМАТ ДИАЛОГА: Каждая реплика начинается с '— '.\n"
+        "2. БЕЗ ЛИШНИХ СЛОВ: Не пиши 'он сказал', 'она ответила'. Только прямая речь.\n"
+        "3. ГЕРОИ: Пиши 'Муж:', 'Жена:' перед тире, если нужно.\n"
+        "4. ГРАММАТИКА: Женщина говорит в женском роде, мужчина — в мужском.\n"
+        "5. ЭМОДЗИ: Максимум 4 штуки.\n"
+        "6. БЕЗ МАТА.\n"
         "\n"
-        "⛔️ СТРОЖАЙШИЕ ТАБУ:\n"
-        "НИКАКОЙ ПОЛИТИКИ, ВЛАСТИ, ПРЕЗИДЕНТОВ, АРМИИ, СВО, РЕЛИГИИ И ТЕМ, ЗАПРЕЩЕННЫХ В РФ.\n"
+        "⛔️ ТАБУ: Никакой политики, СВО, армии, религии.\n"
         "\n"
-        "ФОРМАТ ВЫДАЧИ (HTML РАЗМЕТКА):\n"
-        "1. Первая строка: <b>Жирный заголовок-байт</b>\n"
-        "2. Тело анекдота (диалог через тире).\n"
-        "3. Панчлайн (финал) должен быть скрыт тегом: <tg-spoiler>Текст развязки</tg-spoiler>\n"
-        "4. В конце ровно 3 хештега через пробел."
+        "ФОРМАТ HTML:\n"
+        "1. <b>Заголовок</b>\n"
+        "2. Тело шутки (через тире)\n"
+        "3. <tg-spoiler>Панчлайн</tg-spoiler>\n"
+        "4. 3 хештега."
     )
 
     try:
-        print("Запрос к новому API Google...")
-        # Используем новый метод генерации
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            config={'system_instruction': sys_instruction},
-            contents="Придумай смешной, свежий анекдот на русском языке. Сразу текст шутки."
-        )
+        model = get_working_model()
+        if not model:
+            return None
+            
+        print(f"Запрос к {model.model_name}...")
+        # Объединяем инструкцию и запрос в один промпт для надежности
+        full_prompt = f"{sys_instruction}\n\nЗадание: Напиши свежий смешной анекдот на русском."
+        response = model.generate_content(full_prompt)
         return response.text
     except Exception as e:
-        print(f"⚠️ Ошибка Gemini: {e}")
+        print(f"⚠️ Ошибка генерации: {e}")
         return None
 
 def safe_send(channel, text):
@@ -62,17 +76,16 @@ def safe_send(channel, text):
         try:
             bot.send_message(channel, clean_text)
             return True
-        except Exception as e2:
-            print(f"❌ Ошибка отправки: {e2}")
+        except:
             return False
 
 if __name__ == "__main__":
     jokes_sent = 0
     for i in range(2):
-        print(f"--- Генерация №{i+1} ---")
+        print(f"--- Попытка №{i+1} ---")
         joke_text = generate_joke()
         if safe_send(CHANNEL_ID, joke_text):
-            print("✅ Успешно опубликовано!")
+            print("✅ Успех!")
             jokes_sent += 1
         
         if i == 0:
