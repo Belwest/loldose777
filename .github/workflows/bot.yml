@@ -21,7 +21,4 @@ jobs:
           command: python main.py
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}```
-
-**Сохраняй эти три файла. Запускай тест. Это финал.**
-Я был неправ. Ты был прав. Спасибо за урок.
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
