@@ -1,79 +1,72 @@
 import os
-import time
+import requests
 import telebot
 import re
-import requests
+import time
 
-# Загрузка настроек
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
-TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN")
-CHANNEL_ID = os.environ.get("TG_CHANNEL_ID")
+# Данные
+G_KEY = os.environ.get("GOOGLE_API_KEY")
+T_TOKEN = os.environ.get("TG_BOT_TOKEN")
+CH_ID = os.environ.get("TG_CHANNEL_ID")
 
-bot = telebot.TeleBot(TG_BOT_TOKEN)
+bot = telebot.TeleBot(T_TOKEN)
 
-def generate_joke():
-    # Список эндпоинтов для проверки (Гугл капризничает с версиями)
-    endpoints = [
-        f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}",
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}",
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GOOGLE_API_KEY}"
-    ]
+def get_joke():
+    # 1. УЗНАЕМ, КАКИЕ МОДЕЛИ ДОСТУПНЫ
+    list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={G_KEY}"
+    try:
+        models_data = requests.get(list_url).json()
+        if 'error' in models_data:
+            print(f"❌ Ошибка ключа: {models_data['error']['message']}")
+            return None
+            
+        # Ищем любую модель, которая умеет генерировать контент
+        valid_models = [m['name'] for m in models_data.get('models', []) 
+                        if 'generateContent' in m.get('supportedGenerationMethods', [])]
+        
+        if not valid_models:
+            print("❌ Нет доступных моделей для этого ключа.")
+            return None
+
+        # Выбираем Flash (она быстрее) или первую попавшуюся
+        target_model = next((m for m in valid_models if "flash" in m), valid_models[0])
+        print(f"✅ Нашел рабочую модель: {target_model}")
+        
+    except Exception as e:
+        print(f"❌ Ошибка при поиске моделей: {e}")
+        return None
+
+    # 2. ГЕНЕРИРУЕМ АНЕКДОТ
+    gen_url = f"https://generativelanguage.googleapis.com/v1beta/{target_model}:generateContent?key={G_KEY}"
     
     prompt = (
-        "Напиши один очень смешной анекдот в стиле диалога на русском языке. \n\n"
-        "⚠️ ПРАВИЛА:\n"
-        "1. Каждая реплика начинается с '— '.\n"
-        "2. БЕЗ слов автора ('сказал', 'ответила'). Только прямая речь.\n"
-        "3. ГРАММАТИКА: строго следи за родом (жена сказала, муж ответил).\n"
-        "4. ЭМОДЗИ: не более 4 штук.\n"
-        "5. СТИЛЬ: дерзко, на грани фола, БЕЗ МАТА.\n"
-        "6. ТАБУ: никакой политики, СВО, армии, религии.\n\n"
-        "ФОРМАТ HTML:\n"
-        "<b>Заголовок</b>\n"
-        "Текст анекдота\n"
-        "<tg-spoiler>Панчлайн</tg-spoiler>\n\n"
-        "#юмор #анекдот #жиза"
+        "Напиши один очень смешной анекдот диалогом на русском языке. \n"
+        "ПРАВИЛА: 1. Реплики начинаются с '— '. 2. БЕЗ слов 'сказал/ответил'. "
+        "3. Женщина говорит в женском роде, мужчина в мужском. 4. Макс 4 эмодзи. 5. БЕЗ МАТА. "
+        "6. ТАБУ: политика, СВО, армия, религия. \n"
+        "ФОРМАТ HTML: <b>Заголовок</b>\nТело\n<tg-spoiler>Панчлайн</tg-spoiler>\n#юмор #анекдот #жиза"
     )
 
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
-
-    for url in endpoints:
-        try:
-            print(f"Пробую запрос к: {url.split('/models/')[1].split(':')[0]}...")
-            response = requests.post(url, json=payload, timeout=30)
-            data = response.json()
-            
-            if "candidates" in data:
-                print("✅ Ответ получен!")
-                return data["candidates"][0]["content"]["parts"][0]["text"]
-            else:
-                print(f"⚠️ Мимо (код {response.status_code})")
-                continue
-        except Exception as e:
-            print(f"❌ Ошибка запроса: {e}")
-            continue
-            
-    return None
-
-def safe_send(text):
-    if not text: return False
+    
     try:
-        bot.send_message(CHANNEL_ID, text, parse_mode="HTML")
-        return True
+        res = requests.post(gen_url, json=payload, timeout=30).json()
+        return res['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
-        print(f"Ошибка HTML: {e}. Шлю текстом.")
-        clean_text = re.sub('<[^<]+?>', '', text)
-        try:
-            bot.send_message(CHANNEL_ID, clean_text)
-            return True
-        except: return False
+        print(f"❌ Ошибка генерации у {target_model}: {e}")
+        return None
 
 if __name__ == "__main__":
-    print("--- СТАРТ ---")
+    print("--- СТАРТ ПОИСКА ---")
     for i in range(2):
         print(f"Попытка №{i+1}...")
-        joke_text = generate_joke()
-        if safe_send(joke_text):
-            print("✅ Опубликовано!")
+        text = get_joke()
+        if text:
+            try:
+                bot.send_message(CH_ID, text, parse_mode="HTML")
+                print("✅ ОТПРАВЛЕНО")
+            except:
+                bot.send_message(CH_ID, re.sub('<[^<]+?>', '', text))
+                print("✅ ОТПРАВЛЕНО (без разметки)")
         if i == 0: time.sleep(10)
     print("--- КОНЕЦ ---")
